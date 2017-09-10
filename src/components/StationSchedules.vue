@@ -1,8 +1,12 @@
 <template>
   <div class="app">
-    <LoadingBar v-show="!isReady"/>
+    <ErrorMessage v-show="status === 'error'" :retryPeriod="retryPeriod" class="error-message">
+      Oupppps ! Impossible de se connecter au serveur.<br/>
+      Les données ne seront probablement pas très fraiches.</br>
+    </ErrorMessage>
+    <LoadingBar v-show="status === 'loading'"/>
     <Autocomplete
-      v-show="isReady"
+      v-show="status !== 'loading'"
       :updateSuggestions="searchStation"
       placeholder="Rechercher une station"
       @focus="this.inputFocusChanged"
@@ -22,24 +26,26 @@
 
 <script>
 import Vue from 'vue'
-import { mapGetters } from 'vuex'
+import { mapGetters, mapState } from 'vuex'
 
-import Autocomplete from './Autocomplete.vue'
-import LineSchedule from './LineSchedule.vue'
-import LoadingBar from './LoadingBar.vue'
-import Overlay from './Overlay.vue'
+import Autocomplete from './Autocomplete'
+import ErrorMessage from './ErrorMessage'
+import LineSchedule from './LineSchedule'
+import LoadingBar from './LoadingBar'
+import Overlay from './Overlay'
 
 export default {
   name: 'station-schedules',
   components: {
     Autocomplete,
+    ErrorMessage,
     LineSchedule,
     LoadingBar,
     Overlay,
   },
   data: function () {
     return {
-      isReady: false,
+      status: 'loading',  // one of loading, ready, error
       isSearching: false,
       selectedStation: null,
     }
@@ -49,17 +55,28 @@ export default {
       // /!\ Danger, this can break anytime, not part of the public API
       return this.$options._scopeId
     },
+    retryPeriod: function () {
+      return 5  // seconds
+    },
+    ...mapState([
+      'lines',
+      'serverUp',
+    ]),
     ...mapGetters([
       'getStationLines',
       'uniqueStations',
     ]),
   },
-  created: async function () {
-    await this.$store.dispatch('bootstrap')
-    this.isReady = true
-    Vue.nextTick(() => document.querySelector('.vue-autocomplete input').focus())
+  created: function () {
+    this.$store.watch((state) => state.serverUp, this.onServerStateChange)
+    this.bootstrap()
   },
   methods: {
+    bootstrap: async function () {
+      await this.$store.dispatch('bootstrap')
+      this.status = 'ready'
+      Vue.nextTick(() => document.querySelector('.vue-autocomplete input').focus())
+    },
     searchStation: function (expression) {
       const regex = new RegExp(expression, 'gi')
       return Promise.resolve(
@@ -79,6 +96,27 @@ export default {
       this.selectedStation = this.uniqueStations.filter((s) => s.slug === station.slug)[0]
       this.isSearching = false
     },
+    onServerStateChange: (function () {
+      // interval is used in the callback, don't know why eslint is complaining
+      let interval = null  // eslint-disable-line no-unused-vars
+
+      return function () {
+        if (!this.serverUp) {
+          this.status = 'error'
+          if (this.lines.length === 0 && interval == null) {
+            interval = setInterval(this.bootstrap.bind(this), this.retryPeriod * 1000)
+          }
+        } else {
+          if (interval != null) {
+            clearInterval(interval)
+          }
+          if (this.lines.length > 0) {
+            this.status = 'ready'
+          }
+        }
+      }
+
+    })(),
   },
 }
 </script>
@@ -91,6 +129,9 @@ export default {
 <style scoped>
   .app {
     padding: 0 1em;
+  }
+  .error-message {
+    margin-bottom: 1em;
   }
   .hl {
     background: #ffd621;

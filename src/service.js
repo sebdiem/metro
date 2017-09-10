@@ -1,3 +1,5 @@
+import store from './store'
+
 // ------------ factories
 function lineFactory (data) {
   return {
@@ -79,13 +81,18 @@ function basicXhr (url, {method = 'GET', data = null, headers = {}, withCredenti
     }
     xhr.withCredentials = withCredentials
     xhr.onerror = reject
-    xhr.onload = function () {
-      if ([200, 201, 301, 302].includes(xhr.status)) {
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) {
+        return
+      }
+      if (xhr.status < 200 || xhr.status > 499) {
+        store.commit('updateServerState', false)
+        reject(xhr)
+      } else {
+        store.commit('updateServerState', true)
         resolve(xhr.responseText)
       }
-      reject(xhr)
     }
     xhr.send(data)
   })
 }
-

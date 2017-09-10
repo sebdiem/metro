@@ -8,6 +8,7 @@ Vue.use(Vuex)
 const store = new Vuex.Store({
   state: {
     lines: [],
+    serverUp: true,
   },
   getters: {
     getLine: (state, getters) => (lineCode) => {
@@ -50,6 +51,9 @@ const store = new Vuex.Store({
     },
   },
   mutations: {
+    updateServerState (state, status) {
+      state.serverUp = status
+    },
     updateLines (state, lines) {
       state.lines = state.lines.splice().concat(lines)
     },
