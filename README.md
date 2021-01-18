@@ -1,7 +1,7 @@
 # Metro search
 
 This application enables to search a metro station and displays the time before
-the next train for each metro line in the station.
+the next train for each metro line in the station (built in 2018).
 
 Live version [here](https://single-page-apps.herokuapp.com/metro/)
 
